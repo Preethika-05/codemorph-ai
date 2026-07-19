@@ -1,0 +1,24 @@
+# Maven build directory
+target/
+
+# Node dependencies and build files
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# IDE and Editor files
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
