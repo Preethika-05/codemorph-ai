@@ -367,10 +367,6 @@ export default function App() {
           </div>
         </div>
         <div className="header-actions">
-          <div className="badge-render">
-            <div className="badge-dot" />
-            <span>Render Deploy Ready</span>
-          </div>
         </div>
       </header>
 
@@ -534,7 +530,7 @@ export default function App() {
               ) : (
                 <div className="editor-placeholder">
                   <Languages size={48} style={{ opacity: 0.15 }} />
-                  <p>Click "Translate & Refactor" to view output</p>
+                  <p>Click "Translate" to view output</p>
                 </div>
               )}
             </div>
@@ -583,7 +579,7 @@ export default function App() {
               className="btn-primary"
             >
               <Play size={16} fill="white" />
-              <span>Translate & Refactor</span>
+              <span>Translate</span>
             </button>
           </div>
 
@@ -688,7 +684,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="app-footer">
-        <p>© 2026 CodeMorph AI. Engineered using Spring Boot, React, and Gemini 2.5 Flash.</p>
+        <p>© 2026 CodeMorph AI.</p>
         <div className="footer-links">
           <a href="#" className="footer-link">Documentation</a>
           <a href="#" className="footer-link">Privacy Policy</a>

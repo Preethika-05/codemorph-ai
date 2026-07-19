@@ -353,6 +353,11 @@ body {
   border-color: var(--text-muted);
 }
 
+.select-lang option {
+  background-color: #111827;
+  color: var(--text-primary);
+}
+
 .select-wrapper::after {
   content: '▼';
   font-size: 0.6rem;
