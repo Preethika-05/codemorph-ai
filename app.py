@@ -232,7 +232,19 @@ def generate(prompt: str) -> str:
     try:
         response = requests.post(f"{base_url}/interactions", json=body,
                                  headers={"x-goog-api-key": api_key}, timeout=90)
-        response.raise_for_status()
+        if not response.ok:
+            status = response.status_code
+            if status in (401, 403):
+                message = "Gemini rejected the API key or this key lacks access to the Gemini API. Check the key and API access in Google AI Studio."
+            elif status == 404:
+                message = "The configured Gemini model or API endpoint was not found. Check GEMINI_MODEL and GEMINI_BASE_URL."
+            elif status == 429:
+                message = "Gemini quota or rate limit was reached. Check the API project's usage and billing limits."
+            elif status == 400:
+                message = "Gemini rejected the request. Check the selected model and request configuration."
+            else:
+                message = f"Gemini API returned HTTP {status}. Try again later or check the API status."
+            raise GeminiError(message)
         output = response.json().get("output_text", "")
         if not isinstance(output, str) or not output.strip():
             raise GeminiError("Gemini returned an empty response.")
