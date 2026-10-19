@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeMorph AI</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<main class="app-shell">
+    <section class="workspace">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">Intelligent Multi-Language Code Translator</p>
+                <h1>CodeMorph AI</h1>
+            </div>
+            <div class="status-pill">
+                <span></span>
+                Gemini Ready
+            </div>
+        </header>
+
+        <section class="translator-grid">
+            <article class="editor-panel">
+                <div class="panel-header">
+                    <label for="sourceLanguage">Source</label>
+                    <select id="sourceLanguage"></select>
+                </div>
+                <textarea id="sourceCode" spellcheck="false">public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello from CodeMorph AI");
+    }
+}</textarea>
+            </article>
+
+            <article class="editor-panel">
+                <div class="panel-header">
+                    <label for="targetLanguage">Target</label>
+                    <select id="targetLanguage"></select>
+                </div>
+                <pre id="translatedCode" class="output-code">Your translated code will appear here.</pre>
+            </article>
+        </section>
+
+        <section class="actions-row">
+            <label class="toggle">
+                <input id="includeExplanation" type="checkbox" checked>
+                <span>Include explanation</span>
+            </label>
+            <div class="button-group">
+                <button id="swapButton" type="button" class="secondary">Swap</button>
+                <button id="translateButton" type="button">Translate Code</button>
+            </div>
+        </section>
+
+        <section class="insights">
+            <div>
+                <h2>Explanation</h2>
+                <p id="explanation">Run a translation to see the reasoning and migration notes.</p>
+            </div>
+            <div>
+                <h2>Warnings</h2>
+                <ul id="warnings">
+                    <li>No warnings yet.</li>
+                </ul>
+            </div>
+            <div>
+                <h2>Confidence</h2>
+                <strong id="confidence">--</strong>
+            </div>
+        </section>
+    </section>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>
