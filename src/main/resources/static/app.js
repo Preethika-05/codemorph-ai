@@ -40,6 +40,7 @@ function setAuthMode(mode) {
 function showUser(user) {
   activeUser = user;
   $("#userBar").hidden = !user;
+  $("#signInButton").hidden = Boolean(user);
   if (user) {
     $("#userName").textContent = user.name;
     $("#userAvatar").textContent = user.name.trim().charAt(0).toUpperCase();
@@ -47,7 +48,7 @@ function showUser(user) {
   } else {
     $("#historyCount").textContent = "0";
     $("#historyList").innerHTML = `<div class="history-empty"><span>↗</span><p>Your translations will live here.</p><small>Sign in and translate code to build your personal history.</small></div>`;
-    showAuth(true);
+    showAuth(false);
   }
 }
 
@@ -86,6 +87,7 @@ function updateCounts() {
 }
 
 async function translateCode() {
+  if (!activeUser) { showAuth(true); return; }
   translateButton.disabled = true; translateButton.querySelector("span:first-child").textContent = "Morphing code…";
   translatedCode.textContent = "// Gemini is translating your code…"; explanation.classList.remove("error-text");
   try {
@@ -120,7 +122,8 @@ authForm.addEventListener("submit", async (event) => {
 
 $("#loginTab").addEventListener("click", () => setAuthMode("login"));
 $("#registerTab").addEventListener("click", () => setAuthMode("register"));
-$("#authClose").addEventListener("click", () => { if (activeUser) showAuth(false); });
+$("#signInButton").addEventListener("click", () => showAuth(true));
+$("#authClose").addEventListener("click", () => showAuth(false));
 $("#logoutButton").addEventListener("click", async () => { await api("/api/auth/logout", { method: "POST", body: "{}" }); showUser(null); });
 $("#refreshHistory").addEventListener("click", loadHistory);
 $("#translateButton").addEventListener("click", translateCode);
