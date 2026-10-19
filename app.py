@@ -245,7 +245,21 @@ def generate(prompt: str) -> str:
             else:
                 message = f"Gemini API returned HTTP {status}. Try again later or check the API status."
             raise GeminiError(message)
-        output = response.json().get("output_text", "")
+        result = response.json()
+        output = result.get("output_text", "")
+        if not isinstance(output, str) or not output.strip():
+            # REST responses expose model text in steps[].content[]; output_text
+            # is an SDK convenience property, not a REST response field.
+            text_parts = []
+            for step in result.get("steps", []):
+                if not isinstance(step, dict) or step.get("type") != "model_output":
+                    continue
+                for part in step.get("content", []):
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        value = part.get("text")
+                        if isinstance(value, str) and value.strip():
+                            text_parts.append(value)
+            output = "\n".join(text_parts).strip()
         if not isinstance(output, str) or not output.strip():
             raise GeminiError("Gemini returned an empty response.")
         return output
