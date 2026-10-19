@@ -100,7 +100,7 @@ async function translateCode() {
     setWarnings(data.warnings); confidence.textContent = `${Math.round(data.confidence * 100)}%`;
     loadHistory();
   } catch (error) {
-    translatedCode.textContent = "// No translation generated."; explanation.textContent = error.message;
+    translatedCode.textContent = "// Translation failed."; explanation.textContent = error.message;
     explanation.classList.add("error-text"); confidence.textContent = "—";
     setWarnings([error.message.includes("GEMINI_API_KEY") ? "Add GEMINI_API_KEY to your server environment to enable translation." : "Check your connection and try again."]);
   } finally {
