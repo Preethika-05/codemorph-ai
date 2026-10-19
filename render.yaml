@@ -1,3 +1,9 @@
+databases:
+  - name: codemorph-db
+    databaseName: codemorph
+    user: codemorph
+    plan: free
+
 services:
   - type: web
     name: codemorph-ai
@@ -5,8 +11,17 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
+    healthCheckPath: /health
     envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: codemorph-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.5-flash
+        value: gemini-3.8-flash

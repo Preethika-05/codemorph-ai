@@ -1,76 +1,40 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CodeMorph AI</title>
-    <link rel="stylesheet" href="/styles.css">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0b0f"><title>CodeMorph AI — Code, transformed.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<main class="app-shell">
-    <section class="workspace">
-        <header class="topbar">
-            <div>
-                <p class="eyebrow">Intelligent Multi-Language Code Translator</p>
-                <h1>CodeMorph AI</h1>
-            </div>
-            <div class="status-pill">
-                <span></span>
-                Gemini Ready
-            </div>
-        </header>
-
-        <section class="translator-grid">
-            <article class="editor-panel">
-                <div class="panel-header">
-                    <label for="sourceLanguage">Source</label>
-                    <select id="sourceLanguage"></select>
-                </div>
-                <textarea id="sourceCode" spellcheck="false">public class Main {
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/"><span class="brand-mark">C<span>↗</span></span><span>CODEMORPH<span class="brand-ai">.AI</span></span></a>
+      <div class="nav-center"><span class="live-dot"></span> INTELLIGENT CODE TRANSLATION</div>
+      <div id="userBar" class="user-bar" hidden><span class="user-avatar" id="userAvatar">C</span><span id="userName"></span><button id="logoutButton" class="text-button">Log out</button></div>
+    </header>
+    <section class="hero"><div class="hero-copy"><div class="overline"><span>01</span> &nbsp; THE UNIVERSAL CODE CONVERTER</div><h1>Write once.<br><span>Speak every language.</span></h1><p>Translate code across 13 languages with AI that understands what your code means, not just what it says.</p></div><div class="hero-aside"><div class="orbital"><span class="orbit orbit-a"></span><span class="orbit orbit-b"></span><span class="orbit-core">C<span>↗</span></span><i class="orbit-dot dot-a">{ }</i><i class="orbit-dot dot-b">&lt;/&gt;</i><i class="orbit-dot dot-c">λ</i></div><div class="aside-caption">ONE LOGIC. EVERY SYNTAX.</div></div></section>
+    <section class="translator" aria-label="Code translator">
+      <div class="translator-top"><div class="translator-title"><span class="sparkle">✳</span><div><strong>Translation studio</strong><small>Your code, in a new language.</small></div></div><div class="secure-label"><span class="live-dot"></span> AI ENGINE READY</div></div>
+      <div class="translator-grid">
+        <article class="editor-panel"><div class="panel-header"><div><span class="panel-kicker">INPUT</span><label for="sourceLanguage">Source language</label></div><select id="sourceLanguage"></select></div><textarea id="sourceCode" spellcheck="false" aria-label="Source code">public class Main {
     public static void main(String[] args) {
-        System.out.println("Hello from CodeMorph AI");
+        System.out.println("Hello, world!");
     }
-}</textarea>
-            </article>
-
-            <article class="editor-panel">
-                <div class="panel-header">
-                    <label for="targetLanguage">Target</label>
-                    <select id="targetLanguage"></select>
-                </div>
-                <pre id="translatedCode" class="output-code">Your translated code will appear here.</pre>
-            </article>
-        </section>
-
-        <section class="actions-row">
-            <label class="toggle">
-                <input id="includeExplanation" type="checkbox" checked>
-                <span>Include explanation</span>
-            </label>
-            <div class="button-group">
-                <button id="swapButton" type="button" class="secondary">Swap</button>
-                <button id="translateButton" type="button">Translate Code</button>
-            </div>
-        </section>
-
-        <section class="insights">
-            <div>
-                <h2>Explanation</h2>
-                <p id="explanation">Run a translation to see the reasoning and migration notes.</p>
-            </div>
-            <div>
-                <h2>Warnings</h2>
-                <ul id="warnings">
-                    <li>No warnings yet.</li>
-                </ul>
-            </div>
-            <div>
-                <h2>Confidence</h2>
-                <strong id="confidence">--</strong>
-            </div>
-        </section>
+}</textarea><div class="editor-foot"><span><i class="tiny-dot"></i> YOUR CODE</span><span id="sourceCount">0 chars</span></div></article>
+        <div class="swap-rail"><button id="swapButton" type="button" aria-label="Swap languages" title="Swap languages">⇄</button></div>
+        <article class="editor-panel output-panel"><div class="panel-header"><div><span class="panel-kicker">OUTPUT</span><label for="targetLanguage">Target language</label></div><select id="targetLanguage"></select></div><pre id="translatedCode" class="output-code">// Your translated code will appear here.
+// Ready when you are.</pre><div class="editor-foot"><span><i class="tiny-dot output-dot"></i> MORPHED CODE</span><span id="outputCount">—</span></div></article>
+      </div>
+      <div class="actions-row"><label class="toggle"><input id="includeExplanation" type="checkbox" checked><span class="toggle-track"><i></i></span><span>Include explanation</span></label><button id="translateButton" type="button" class="primary-button"><span>Translate code</span><span class="button-arrow">↗</span></button></div>
+      <div class="insights"><article class="insight-card explanation-card"><span class="insight-icon">✳</span><div><span class="insight-label">THE THINKING</span><p id="explanation">Run a translation to see the logic and migration notes.</p></div></article><article class="insight-card warnings-card"><span class="insight-icon">⌁</span><div><span class="insight-label">WATCH OUT FOR</span><ul id="warnings"><li>No warnings yet.</li></ul></div></article><article class="insight-card confidence-card"><span class="insight-label">CONFIDENCE</span><strong id="confidence">—</strong><span class="confidence-sub">AI estimate</span></article></div>
     </section>
-</main>
-<script src="/app.js"></script>
+    <section class="history-section"><div class="history-heading"><div><div class="overline"><span>02</span> &nbsp; YOUR WORKSPACE</div><h2>Recent translations<span class="history-count" id="historyCount">0</span></h2></div><button id="refreshHistory" class="text-button">Refresh history ↻</button></div><div id="historyList" class="history-list"><div class="history-empty"><span>↗</span><p>Your translations will live here.</p><small>Sign in and translate code to build your personal history.</small></div></div></section>
+    <footer><span>© 2026 CODEMORPH AI</span><span>BUILT FOR CODE THAT MOVES.</span><a href="https://github.com/Preethika-05/codemorph-ai" target="_blank" rel="noreferrer">OPEN SOURCE ↗</a></footer>
+  </main>
+  <div id="authOverlay" class="auth-overlay"><section class="auth-card"><button id="authClose" class="auth-close" type="button" aria-label="Close">×</button><a class="brand auth-brand" href="/"><span class="brand-mark">C<span>↗</span></span><span>CODEMORPH<span class="brand-ai">.AI</span></span></a><div class="overline auth-overline"><span>YOUR PRIVATE WORKSPACE</span></div><h2 id="authTitle">Your code, your space.</h2><p id="authDescription">Sign in to translate code and keep your history in one place.</p><div class="auth-tabs"><button id="loginTab" class="auth-tab active">Sign in</button><button id="registerTab" class="auth-tab">Create account</button></div><form id="authForm"><label id="nameField" class="form-field" hidden><span>NAME</span><input id="nameInput" autocomplete="name" maxlength="80" placeholder="Your name"></label><label class="form-field"><span>EMAIL ADDRESS</span><input id="emailInput" type="email" autocomplete="email" required placeholder="you@example.com"></label><label class="form-field"><span>PASSWORD</span><input id="passwordInput" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></label><p id="authError" class="auth-error" role="alert"></p><button class="primary-button auth-submit" type="submit"><span id="authSubmitText">Sign in to continue</span><span class="button-arrow">↗</span></button></form><small class="auth-note">Your account keeps your code history private.</small></section></div>
+  <script src="/app.js"></script>
 </body>
 </html>
