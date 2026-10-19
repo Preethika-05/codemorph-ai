@@ -251,8 +251,14 @@ def generate(prompt: str) -> str:
         return output
     except GeminiError:
         raise
-    except (requests.RequestException, ValueError) as exc:
-        raise GeminiError("Unable to reach Gemini API. Check your key, quota, and network.") from exc
+    except requests.Timeout as exc:
+        raise GeminiError("Gemini API request timed out. Check Gemini availability and try again.") from exc
+    except requests.ConnectionError as exc:
+        raise GeminiError("Could not connect to Gemini API (connection error). Check Render outbound access to generativelanguage.googleapis.com; Google may not have received the key.") from exc
+    except requests.RequestException as exc:
+        raise GeminiError(f"Gemini request failed before a valid response ({type(exc).__name__}). Check Render network access and GEMINI_BASE_URL.") from exc
+    except ValueError as exc:
+        raise GeminiError("Gemini returned an invalid response. Check the configured model and API endpoint.") from exc
 
 
 def parse_response(raw: str) -> dict:
