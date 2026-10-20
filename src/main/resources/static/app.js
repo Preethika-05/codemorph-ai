@@ -92,7 +92,7 @@ async function translateCode() {
   if (!activeUser) { showAuth(true); return; }
   translationInFlight = true;
   translateButton.disabled = true; translateButton.querySelector("span:first-child").textContent = "Morphing code…";
-  translatedCode.textContent = "// Gemini is translating your code…"; explanation.classList.remove("error-text");
+  translatedCode.textContent = "// Groq is translating your code…"; explanation.classList.remove("error-text");
   try {
     const data = await api("/api/translate", { method: "POST", body: JSON.stringify({
       sourceLanguage: sourceSelect.value, targetLanguage: targetSelect.value,
@@ -105,7 +105,7 @@ async function translateCode() {
   } catch (error) {
     translatedCode.textContent = "// Translation failed."; explanation.textContent = error.message;
     explanation.classList.add("error-text"); confidence.textContent = "—";
-    setWarnings([error.message.includes("GEMINI_API_KEY") ? "Add GEMINI_API_KEY to your server environment to enable translation." : "Check your connection and try again."]);
+    setWarnings([error.message.includes("GROQ_API_KEY") ? "Add GROQ_API_KEY to your server environment to enable translation." : "Check your connection and try again."]);
   } finally {
     translationInFlight = false;
     translateButton.disabled = false; translateButton.querySelector("span:first-child").textContent = "Translate code"; updateCounts();

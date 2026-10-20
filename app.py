@@ -63,8 +63,8 @@ with app.app_context():
     db.create_all()
 
 
-class GeminiError(Exception):
-    """An expected error while calling Gemini."""
+class AIProviderError(Exception):
+    """An expected error while calling the configured AI provider."""
 
     def __init__(self, message: str, status_code: int = 502):
         super().__init__(message)
@@ -215,8 +215,8 @@ def translate():
               f"Source code:\n```{source_language.lower()}\n{source_code}\n```")
     try:
         parsed = parse_response(generate(prompt))
-    except GeminiError as exc:
-        return error_response(exc.status_code, "AI provider request failed", [str(exc)])
+    except AIProviderError as exc:
+        return error_response(exc.status_code, "AI translation request failed", [str(exc)])
     explanation = parsed["explanation"] if payload.get("includeExplanation", False) else ""
     item = Translation(user_id=user.id, source_language=source_language, target_language=target_language,
                        source_code=source_code, translated_code=parsed["translatedCode"], explanation=explanation,
@@ -227,81 +227,54 @@ def translate():
 
 
 def generate(prompt: str) -> str:
-    provider = os.getenv("AI_PROVIDER", "gemini").strip().lower()
-    is_gemini = provider == "gemini"
-    api_key = os.getenv("GEMINI_API_KEY" if is_gemini else "AI_API_KEY", "").strip()
+    provider = os.getenv("AI_PROVIDER", "groq").strip().lower()
+    if provider != "groq":
+        raise AIProviderError("AI_PROVIDER must be set to groq.", 503)
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
-        key_name = "GEMINI_API_KEY" if is_gemini else "AI_API_KEY"
-        raise GeminiError(f"{key_name} is not configured.", 503)
-    model = os.getenv("AI_MODEL", os.getenv("GEMINI_MODEL", "gemini-3.8-flash"))
-    if is_gemini:
-        base_url = os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
-        endpoint = f"{base_url}/interactions"
-        headers = {"x-goog-api-key": api_key}
-        body = {"model": model, "system_instruction": SYSTEM_INSTRUCTION, "input": prompt,
-                "generation_config": {"thinking_level": "low"}}
-    elif provider == "openai-compatible":
-        endpoint = os.getenv("AI_API_URL", "").strip()
-        if not endpoint:
-            raise GeminiError("Set AI_API_URL for the selected OpenAI-compatible provider.", 503)
-        headers = {"Authorization": f"Bearer {api_key}"}
-        body = {"model": model, "messages": [{"role": "system", "content": SYSTEM_INSTRUCTION},
-                                                {"role": "user", "content": prompt}],
-                "temperature": 0.2, "response_format": {"type": "json_object"}}
-    else:
-        raise GeminiError("AI_PROVIDER must be 'gemini' or 'openai-compatible'.", 503)
+        raise AIProviderError("GROQ_API_KEY is not configured on the server.", 503)
+    model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    base_url = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+    body = {"model": model, "messages": [
+                {"role": "system", "content": SYSTEM_INSTRUCTION},
+                {"role": "user", "content": prompt},
+            ], "response_format": {"type": "json_object"}, "temperature": 0.2}
     try:
-        response = requests.post(endpoint, json=body, headers=headers, timeout=90)
+        response = requests.post(f"{base_url}/chat/completions", json=body,
+                                 headers={"Authorization": f"Bearer {api_key}"}, timeout=90)
         if not response.ok:
             status = response.status_code
             retry_at = provider_retry_time(response)
             retry_message = f" Try again after {retry_at}." if retry_at else ""
             if status in (401, 403):
-                message = "The AI provider rejected the server API key or the key lacks access. Check the provider's key and API access settings."
+                message = "Groq rejected the API key. Check GROQ_API_KEY in the Render environment settings."
             elif status == 404:
-                message = "The configured model or provider API endpoint was not found. Check AI_MODEL and the provider endpoint settings."
+                message = "The configured Groq model or API endpoint was not found. Check GROQ_MODEL and GROQ_BASE_URL."
             elif status == 429:
-                message = "The AI provider quota or rate limit was reached. No automatic retry was made." + retry_message
+                message = "Groq rate limit or quota was reached. No automatic retry was made." + retry_message
             elif status == 400:
-                message = "The AI provider rejected the request. Check the selected model and request configuration."
+                message = "Groq rejected the request. Check GROQ_MODEL and the Groq model's supported options."
             elif status == 503:
-                provider_name = "Gemini" if is_gemini else "The AI provider"
-                message = f"{provider_name} is temporarily unavailable or overloaded." + (retry_message or " Wait a little, then try again.")
+                message = "Groq is temporarily unavailable or overloaded." + (retry_message or " Wait a little, then try again.")
             else:
-                message = f"The AI provider returned HTTP {status}. Try again later."
-            raise GeminiError(message, status)
+                message = f"Groq API returned HTTP {status}. Try again later."
+            raise AIProviderError(message, status)
         result = response.json()
-        if is_gemini:
-            output = result.get("output_text", "")
-        else:
-            choices = result.get("choices") or []
-            output = choices[0].get("message", {}).get("content", "") if choices else ""
+        choices = result.get("choices") or []
+        output = choices[0].get("message", {}).get("content", "") if choices else ""
         if not isinstance(output, str) or not output.strip():
-            # REST responses expose model text in steps[].content[]; output_text
-            # is an SDK convenience property, not a REST response field.
-            text_parts = []
-            for step in result.get("steps", []):
-                if not isinstance(step, dict) or step.get("type") != "model_output":
-                    continue
-                for part in step.get("content", []):
-                    if isinstance(part, dict) and part.get("type") == "text":
-                        value = part.get("text")
-                        if isinstance(value, str) and value.strip():
-                            text_parts.append(value)
-            output = "\n".join(text_parts).strip()
-        if not isinstance(output, str) or not output.strip():
-            raise GeminiError("Gemini returned an empty response.")
+            raise AIProviderError("Groq returned an empty response. Try again or choose a supported model.")
         return output
-    except GeminiError:
+    except AIProviderError:
         raise
     except requests.Timeout as exc:
-        raise GeminiError("The AI provider request timed out. Check provider availability and try again.", 504) from exc
+        raise AIProviderError("Groq API request timed out. Check Groq availability and try again.", 504) from exc
     except requests.ConnectionError as exc:
-        raise GeminiError("Could not connect to Gemini API (connection error). Check Render outbound access to generativelanguage.googleapis.com; Google may not have received the key.") from exc
+        raise AIProviderError("Could not connect to Groq API. Check Render outbound access.") from exc
     except requests.RequestException as exc:
-        raise GeminiError(f"AI provider request failed before a valid response ({type(exc).__name__}). Check Render outbound access and provider settings.") from exc
+        raise AIProviderError(f"Groq request failed before a valid response ({type(exc).__name__}). Check Render network access and GROQ_BASE_URL.") from exc
     except ValueError as exc:
-        raise GeminiError("The AI provider returned an invalid response. Check the configured model and API endpoint.") from exc
+        raise AIProviderError("Groq returned an invalid response. Check the configured model and API endpoint.") from exc
 
 
 def provider_retry_time(response: requests.Response) -> str | None:
@@ -330,8 +303,6 @@ def provider_retry_time(response: requests.Response) -> str | None:
     except (ValueError, TypeError, OverflowError):
         pass
     return None
-
-
 def parse_response(raw: str) -> dict:
     content = raw.strip()
     if content.startswith("```"):
@@ -349,7 +320,7 @@ def parse_response(raw: str) -> dict:
                 "warnings": [str(item) for item in warnings] if isinstance(warnings, list) else [],
                 "confidence": confidence}
     except (json.JSONDecodeError, TypeError, ValueError):
-        return {"translatedCode": raw, "explanation": "Gemini returned plain text instead of structured JSON.",
+        return {"translatedCode": raw, "explanation": "The AI returned plain text instead of structured JSON.",
                 "warnings": ["Review the output before using it in production."], "confidence": 0.65}
 
 
