@@ -4,6 +4,7 @@ const translatedCode = $("#translatedCode"), explanation = $("#explanation"), wa
 const confidence = $("#confidence"), translateButton = $("#translateButton"), includeExplanation = $("#includeExplanation");
 const overlay = $("#authOverlay"), authForm = $("#authForm");
 let authMode = "login", activeUser = null;
+let translationInFlight = false;
 
 async function api(url, options = {}) {
   const response = await fetch(url, { credentials: "same-origin", ...options,
@@ -87,7 +88,9 @@ function updateCounts() {
 }
 
 async function translateCode() {
+  if (translationInFlight) return;
   if (!activeUser) { showAuth(true); return; }
+  translationInFlight = true;
   translateButton.disabled = true; translateButton.querySelector("span:first-child").textContent = "Morphing code…";
   translatedCode.textContent = "// Gemini is translating your code…"; explanation.classList.remove("error-text");
   try {
@@ -104,6 +107,7 @@ async function translateCode() {
     explanation.classList.add("error-text"); confidence.textContent = "—";
     setWarnings([error.message.includes("GEMINI_API_KEY") ? "Add GEMINI_API_KEY to your server environment to enable translation." : "Check your connection and try again."]);
   } finally {
+    translationInFlight = false;
     translateButton.disabled = false; translateButton.querySelector("span:first-child").textContent = "Translate code"; updateCounts();
   }
 }

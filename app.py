@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from email.utils import parsedate_to_datetime
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -64,6 +65,10 @@ with app.app_context():
 
 class GeminiError(Exception):
     """An expected error while calling Gemini."""
+
+    def __init__(self, message: str, status_code: int = 502):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def user_payload(user: User) -> dict:
@@ -211,7 +216,7 @@ def translate():
     try:
         parsed = parse_response(generate(prompt))
     except GeminiError as exc:
-        return error_response(502, "Gemini request failed", [str(exc)])
+        return error_response(exc.status_code, "AI provider request failed", [str(exc)])
     explanation = parsed["explanation"] if payload.get("includeExplanation", False) else ""
     item = Translation(user_id=user.id, source_language=source_language, target_language=target_language,
                        source_code=source_code, translated_code=parsed["translatedCode"], explanation=explanation,
@@ -222,31 +227,55 @@ def translate():
 
 
 def generate(prompt: str) -> str:
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    provider = os.getenv("AI_PROVIDER", "gemini").strip().lower()
+    is_gemini = provider == "gemini"
+    api_key = os.getenv("GEMINI_API_KEY" if is_gemini else "AI_API_KEY", "").strip()
     if not api_key:
-        raise GeminiError("GEMINI_API_KEY is not configured.")
-    model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
-    base_url = os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
-    body = {"model": model, "system_instruction": SYSTEM_INSTRUCTION, "input": prompt,
-            "generation_config": {"thinking_level": "low"}}
+        key_name = "GEMINI_API_KEY" if is_gemini else "AI_API_KEY"
+        raise GeminiError(f"{key_name} is not configured.", 503)
+    model = os.getenv("AI_MODEL", os.getenv("GEMINI_MODEL", "gemini-3.8-flash"))
+    if is_gemini:
+        base_url = os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
+        endpoint = f"{base_url}/interactions"
+        headers = {"x-goog-api-key": api_key}
+        body = {"model": model, "system_instruction": SYSTEM_INSTRUCTION, "input": prompt,
+                "generation_config": {"thinking_level": "low"}}
+    elif provider == "openai-compatible":
+        endpoint = os.getenv("AI_API_URL", "").strip()
+        if not endpoint:
+            raise GeminiError("Set AI_API_URL for the selected OpenAI-compatible provider.", 503)
+        headers = {"Authorization": f"Bearer {api_key}"}
+        body = {"model": model, "messages": [{"role": "system", "content": SYSTEM_INSTRUCTION},
+                                                {"role": "user", "content": prompt}],
+                "temperature": 0.2, "response_format": {"type": "json_object"}}
+    else:
+        raise GeminiError("AI_PROVIDER must be 'gemini' or 'openai-compatible'.", 503)
     try:
-        response = requests.post(f"{base_url}/interactions", json=body,
-                                 headers={"x-goog-api-key": api_key}, timeout=90)
+        response = requests.post(endpoint, json=body, headers=headers, timeout=90)
         if not response.ok:
             status = response.status_code
+            retry_at = provider_retry_time(response)
+            retry_message = f" Try again after {retry_at}." if retry_at else ""
             if status in (401, 403):
-                message = "Gemini rejected the API key or this key lacks access to the Gemini API. Check the key and API access in Google AI Studio."
+                message = "The AI provider rejected the server API key or the key lacks access. Check the provider's key and API access settings."
             elif status == 404:
-                message = "The configured Gemini model or API endpoint was not found. Check GEMINI_MODEL and GEMINI_BASE_URL."
+                message = "The configured model or provider API endpoint was not found. Check AI_MODEL and the provider endpoint settings."
             elif status == 429:
-                message = "Gemini quota or rate limit was reached. Check the API project's usage and billing limits."
+                message = "The AI provider quota or rate limit was reached. No automatic retry was made." + retry_message
             elif status == 400:
-                message = "Gemini rejected the request. Check the selected model and request configuration."
+                message = "The AI provider rejected the request. Check the selected model and request configuration."
+            elif status == 503:
+                provider_name = "Gemini" if is_gemini else "The AI provider"
+                message = f"{provider_name} is temporarily unavailable or overloaded." + (retry_message or " Wait a little, then try again.")
             else:
-                message = f"Gemini API returned HTTP {status}. Try again later or check the API status."
-            raise GeminiError(message)
+                message = f"The AI provider returned HTTP {status}. Try again later."
+            raise GeminiError(message, status)
         result = response.json()
-        output = result.get("output_text", "")
+        if is_gemini:
+            output = result.get("output_text", "")
+        else:
+            choices = result.get("choices") or []
+            output = choices[0].get("message", {}).get("content", "") if choices else ""
         if not isinstance(output, str) or not output.strip():
             # REST responses expose model text in steps[].content[]; output_text
             # is an SDK convenience property, not a REST response field.
@@ -266,13 +295,41 @@ def generate(prompt: str) -> str:
     except GeminiError:
         raise
     except requests.Timeout as exc:
-        raise GeminiError("Gemini API request timed out. Check Gemini availability and try again.") from exc
+        raise GeminiError("The AI provider request timed out. Check provider availability and try again.", 504) from exc
     except requests.ConnectionError as exc:
         raise GeminiError("Could not connect to Gemini API (connection error). Check Render outbound access to generativelanguage.googleapis.com; Google may not have received the key.") from exc
     except requests.RequestException as exc:
-        raise GeminiError(f"Gemini request failed before a valid response ({type(exc).__name__}). Check Render network access and GEMINI_BASE_URL.") from exc
+        raise GeminiError(f"AI provider request failed before a valid response ({type(exc).__name__}). Check Render outbound access and provider settings.") from exc
     except ValueError as exc:
-        raise GeminiError("Gemini returned an invalid response. Check the configured model and API endpoint.") from exc
+        raise GeminiError("The AI provider returned an invalid response. Check the configured model and API endpoint.") from exc
+
+
+def provider_retry_time(response: requests.Response) -> str | None:
+    retry_after = response.headers.get("Retry-After", "").strip()
+    if retry_after:
+        try:
+            return (datetime.now(timezone.utc) + timedelta(seconds=max(0, int(retry_after)))).isoformat()
+        except (ValueError, OverflowError):
+            try:
+                parsed = parsedate_to_datetime(retry_after)
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                return parsed.astimezone(timezone.utc).isoformat()
+            except (TypeError, ValueError, OverflowError):
+                pass
+    try:
+        body = response.json()
+        error = body.get("error", {}) if isinstance(body, dict) else {}
+        details = error.get("details", []) if isinstance(error, dict) else []
+        for detail in details:
+            delay = detail.get("retryDelay", "") if isinstance(detail, dict) else ""
+            match = re.fullmatch(r"(\d+(?:\.\d+)?)s", delay)
+            if match:
+                seconds = float(match.group(1))
+                return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat()
+    except (ValueError, TypeError, OverflowError):
+        pass
+    return None
 
 
 def parse_response(raw: str) -> dict:

@@ -25,3 +25,5 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-3.8-flash
+      - key: AI_PROVIDER
+        value: gemini
