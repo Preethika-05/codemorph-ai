@@ -233,7 +233,7 @@ def generate(prompt: str) -> str:
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise AIProviderError("GROQ_API_KEY is not configured on the server.", 503)
-    model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     base_url = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
     body = {"model": model, "messages": [
                 {"role": "system", "content": SYSTEM_INSTRUCTION},
