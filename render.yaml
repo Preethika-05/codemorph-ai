@@ -7,4 +7,8 @@ services:
       - key: PORT
         value: 8085
       - key: GEMINI_API_KEY
-        value: REPLACE_WITH_YOUR_GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-flash-latest
+      - key: AI_PROVIDER
+        value: gemini

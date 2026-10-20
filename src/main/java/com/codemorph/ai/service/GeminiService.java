@@ -14,6 +14,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 
@@ -30,14 +34,31 @@ public class GeminiService {
     @Value("${gemini.model}")
     private String model;
 
-    @Value("${gemini.api.key}")
+    @Value("${ai.api.key}")
     private String apiKey;
+
+    @Value("${ai.provider:gemini}")
+    private String provider;
+
+    @Value("${ai.api.url:}")
+    private String alternateApiUrl;
 
     public GeminiService(ObjectMapper objectMapper) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(15))
                 .build();
         this.objectMapper = objectMapper;
+    }
+
+    GeminiService(ObjectMapper objectMapper, HttpClient httpClient, String provider,
+                  String apiUrl, String model, String apiKey, String alternateApiUrl) {
+        this.objectMapper = objectMapper;
+        this.httpClient = httpClient;
+        this.provider = provider;
+        this.apiUrl = apiUrl;
+        this.model = model;
+        this.apiKey = apiKey;
+        this.alternateApiUrl = alternateApiUrl;
     }
 
     public TranslationResponse translateCode(TranslationRequest request) {
@@ -47,34 +68,91 @@ public class GeminiService {
             }
 
             String prompt = buildPrompt(request);
-            String requestBodyJson = buildRequestBodyJson(prompt);
+            String requestBodyJson = isGemini() ? buildRequestBodyJson(prompt) : buildOpenAiRequestBody(prompt);
 
-            String requestUrl = String.format("%s/%s:generateContent?key=%s", apiUrl, model, apiKey);
+            String requestUrl = isGemini() ? String.format("%s/%s:generateContent", apiUrl, model) : alternateApiUrl;
 
-            HttpRequest httpRequest = HttpRequest.newBuilder()
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(requestUrl))
                     .header("Content-Type", "application/json")
                     .timeout(Duration.ofSeconds(30))
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson))
-                    .build();
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson));
+            requestBuilder.header(isGemini() ? "x-goog-api-key" : "Authorization",
+                    isGemini() ? apiKey : "Bearer " + apiKey);
 
-            log.info("Sending translation request to Gemini API (model: {})", model);
-            HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            log.info("Sending translation request to configured AI provider (provider: {}, model: {})", provider, model);
+            HttpResponse<String> httpResponse = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
 
-            if (httpResponse.statusCode() != 200) {
-                log.error("Gemini API returned status code {}: {}", httpResponse.statusCode(), httpResponse.body());
-                JsonNode errorNode = objectMapper.readTree(httpResponse.body());
-                String message = errorNode.has("error") && errorNode.get("error").has("message") 
-                        ? errorNode.get("error").get("message").asText() 
-                        : "HTTP " + httpResponse.statusCode();
-                return TranslationResponse.withError("Gemini API Error: " + message);
+            if (httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300) {
+                int code = httpResponse.statusCode();
+                String message = friendlyProviderError(code, httpResponse);
+                log.warn("AI provider request failed with HTTP {} (provider: {})", code, provider);
+                return TranslationResponse.withError(message);
             }
 
-            return parseGeminiResponse(httpResponse.body());
+            return isGemini() ? parseGeminiResponse(httpResponse.body()) : parseOpenAiResponse(httpResponse.body());
         } catch (Exception e) {
-            log.error("Error during translation", e);
-            return TranslationResponse.withError("Translation failed: " + e.getMessage());
+            log.error("Translation failed due to {} (provider: {})", e.getClass().getSimpleName(), provider);
+            return TranslationResponse.withError("The AI service could not complete this translation. Please try again later.");
         }
+    }
+
+    private boolean isGemini() {
+        return provider == null || provider.isBlank() || provider.equalsIgnoreCase("gemini");
+    }
+
+    private String buildOpenAiRequestBody(String prompt) throws Exception {
+        return objectMapper.writeValueAsString(Map.of(
+                "model", model,
+                "temperature", 0.2,
+                "response_format", Map.of("type", "json_object"),
+                "messages", List.of(Map.of("role", "user", "content", prompt))));
+    }
+
+    private TranslationResponse parseOpenAiResponse(String responseBody) throws Exception {
+        JsonNode root = objectMapper.readTree(responseBody);
+        String content = root.path("choices").path(0).path("message").path("content").asText();
+        if (content.isBlank()) return TranslationResponse.withError("The AI returned an empty translation. Please try again.");
+        return objectMapper.readValue(content, TranslationResponse.class);
+    }
+
+    private String friendlyProviderError(int code, HttpResponse<String> response) {
+        String retryAt = retryAt(response);
+        if (code == 429) {
+            return providerName() + " quota is temporarily exhausted. No automatic retry was made." +
+                    (retryAt == null ? " Please try again later." : " Try again after " + retryAt + ".");
+        }
+        if (code == 503) {
+            return providerName() + " is temporarily unavailable or overloaded." +
+                    (retryAt == null ? " Wait a little, then try again." : " Try again after " + retryAt + ".");
+        }
+        return "The configured AI provider rejected the request (HTTP " + code + "). Check its model and API settings.";
+    }
+
+    private String providerName() {
+        return isGemini() ? "Gemini" : "The AI provider";
+    }
+
+    private String retryAt(HttpResponse<String> response) {
+        String value = response.headers().firstValue("Retry-After").orElse(null);
+        if (value != null) {
+            try { return Instant.now().plusSeconds(Long.parseLong(value.trim())).toString(); }
+            catch (NumberFormatException ignored) {
+                try { return ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toString(); }
+                catch (DateTimeParseException ignoredDate) { /* check Gemini retry metadata */ }
+            }
+        }
+        try {
+            JsonNode body = objectMapper.readTree(response.body());
+            for (JsonNode detail : body.path("error").path("details")) {
+                String delay = detail.path("retryDelay").asText("");
+                if (delay.matches("\\d+(\\.\\d+)?s")) {
+                    double seconds = Double.parseDouble(delay.substring(0, delay.length() - 1));
+                    return Instant.now().plusMillis((long) (seconds * 1000)).toString();
+                }
+            }
+        } catch (Exception ignored) { /* do not expose provider error details */ }
+        return null;
     }
 
     private String buildPrompt(TranslationRequest request) {
@@ -158,8 +236,6 @@ public class GeminiService {
         }
 
         String jsonText = parts.get(0).get("text").asText();
-        log.info("Successfully received structured response from Gemini: {}", jsonText);
-
         return objectMapper.readValue(jsonText, TranslationResponse.class);
     }
 }

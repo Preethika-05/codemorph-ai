@@ -73,6 +73,7 @@ export default function App() {
   const [copiedTarget, setCopiedTarget] = useState(false);
 
   const textareaRef = useRef(null);
+  const translationInFlight = useRef(false);
 
   // Load history from localStorage
   useEffect(() => {
@@ -123,6 +124,7 @@ export default function App() {
 
   // Run the translation API call
   const handleTranslate = async () => {
+    if (translationInFlight.current) return;
     if (!sourceCode.trim()) {
       showToast('Please enter some code to translate.', 'error');
       return;
@@ -132,6 +134,7 @@ export default function App() {
       return;
     }
 
+    translationInFlight.current = true;
     setLoading(true);
     setTranslatedCode('');
     setExplanation('');
@@ -202,6 +205,7 @@ export default function App() {
       console.error(err);
       showToast('Failed to connect to the translation server. Please verify backend is running.', 'error');
     } finally {
+      translationInFlight.current = false;
       setLoading(false);
     }
   };

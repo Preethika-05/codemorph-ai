@@ -29,7 +29,10 @@ public class TranslationController {
         
         if (response.error() != null) {
             log.warn("Translation request failed: {}", response.error());
-            return ResponseEntity.badRequest().body(response);
+            int status = response.error().contains("quota is temporarily exhausted") ? 429
+                    : response.error().contains("temporarily unavailable or overloaded") ? 503
+                    : 502;
+            return ResponseEntity.status(status).body(response);
         }
         
         log.info("Translation completed successfully.");
